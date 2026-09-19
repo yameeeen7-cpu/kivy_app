@@ -62,6 +62,7 @@ jobs:
       - name: Build with Buildozer
         run: |
           export CFLAGS="-Wno-error"
+          export MAKEFLAGS="-j1"
           buildozer -v android debug
 
       - name: Upload APK
