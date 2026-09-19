@@ -11,10 +11,25 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Set up Python 3.9
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+
+      - name: Force Python 3.9 System-Wide
+        run: |
+          echo "=== Before Force ==="
+          python --version
+          python3 --version
+          
+          # ربط بايثون الخاص بـ GitHub Actions حصرياً بأوامر النظام
+          sudo rm -f /usr/bin/python3 /usr/bin/python
+          sudo ln -s $(which python) /usr/bin/python3
+          sudo ln -s $(which python) /usr/bin/python
+          
+          echo "=== After Force (Must be 3.9) ==="
+          python --version
+          python3 --version
 
       - name: Set up Swap Space
         run: |
@@ -56,8 +71,8 @@ jobs:
 
       - name: Install Buildozer and Cython
         run: |
-          pip install --upgrade pip
-          pip install "setuptools<=65.5.0" cython==0.29.32 buildozer
+          python -m pip install --upgrade pip
+          python -m pip install "setuptools<=65.5.0" cython==0.29.32 buildozer
 
       - name: Build with Buildozer
         run: |
