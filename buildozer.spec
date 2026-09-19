@@ -5,7 +5,7 @@ package.domain = org.test
 source.dir = .
 source.exts = py,png,jpg,kv,atlas
 version = 0.1
-requirements = python3,kivy,pyjnius
+requirements = python3,kivy,pyjnius,cython==0.29.36
 orientation = portrait
 fullscreen = 0
 android.permissions = INTERNET
