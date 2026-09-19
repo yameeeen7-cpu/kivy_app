@@ -75,6 +75,7 @@ jobs:
 
       - name: Build with Buildozer
         run: |
+          unset ANDROID_NDK
           export CFLAGS="-Wno-error"
           export MAKEFLAGS="-j1"
           buildozer -v android debug
