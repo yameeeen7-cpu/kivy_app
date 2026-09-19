@@ -3,6 +3,7 @@ name: Build APK
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -11,59 +12,95 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+          cache: 'pip'
+
+      - name: Verify Python version
+        run: |
+          echo "=== Python path ==="
+          which python
+          which python3
+          echo "=== Python version ==="
+          python --version
+          python3 --version
+          echo "=== pip version ==="
+          python -m pip --version
+          echo "=== Check for Python 3.14 ==="
+          python -c "import sys; print('EXACTLY:', sys.version)"
+          python -c "import sys; assert sys.version_info[:2] == (3, 9), f'WRONG PYTHON: {sys.version}'"
 
       - name: Set up Swap Space
         run: |
           sudo swapoff /swapfile || true
           sudo rm -f /swapfile
-          sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 status=progress
+          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
+          free -h
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-              python3-pip \
-              build-essential \
-              git \
-              python3-dev \
-              ffmpeg \
-              libsdl2-dev \
-              libsdl2-image-dev \
-              libsdl2-mixer-dev \
-              libsdl2-ttf-dev \
-              libportmidi-dev \
-              libswscale-dev \
-              libavformat-dev \
-              libavcodec-dev \
-              zlib1g-dev \
-              ant \
-              openjdk-17-jdk \
-              autoconf \
-              libtool \
-              pkg-config \
-              libncurses5-dev \
-              libstdc++6 \
-              libglu1-mesa-dev \
-              unzip \
-              zip
+            python3.9 python3.9-dev python3.9-venv \
+            python3-pip \
+            build-essential git \
+            ffmpeg \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
+            zlib1g-dev ant openjdk-17-jdk \
+            autoconf libtool pkg-config \
+            libncurses5-dev libstdc++6 libglu1-mesa-dev \
+            unzip zip ccache
 
       - name: Install Buildozer and Cython
         run: |
-          pip install --upgrade pip
-          pip install "setuptools<=65.5.0" "cython==0.29.33" buildozer
+          # استخدام python -m pip إجبارياً بدلاً من pip
+          python -m pip install --upgrade "pip<24" "wheel"
+          python -m pip install "setuptools<=65.5.0" "cython==0.29.33" buildozer
+
+      - name: Verify Cython and Buildozer
+        run: |
+          python -c "import Cython; print('Cython:', Cython.__version__)"
+          python -c "import sys; print('Python:', sys.version)"
+          buildozer --version
+          echo "=== pip list (filtered) ==="
+          python -m pip list | grep -iE "cython|kivy|buildozer|setuptools|pip|wheel"
 
       - name: Build with Buildozer
         run: |
-          buildozer -v android debug
+          buildozer -v android debug 2>&1 | tee build.log
+        continue-on-error: true
+
+      - name: Show last 150 lines of build log
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "  آخر 150 سطر من سجل البناء"
+          echo "=========================================="
+          tail -n 150 build.log
+
+      - name: Search for errors in log
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "  البحث عن الأخطاء في السجل"
+          echo "=========================================="
+          grep -nE "error:|Error:|ERROR|failed|FAILED|Traceback|Exception" build.log | tail -50 || true
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: package
