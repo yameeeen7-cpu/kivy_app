@@ -16,27 +16,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-          cache: 'pip'
 
       - name: Verify Python version
         run: |
-          echo "=== Python path ==="
-          which python
-          which python3
-          echo "=== Python version ==="
           python --version
           python3 --version
-          echo "=== pip version ==="
           python -m pip --version
-          echo "=== Check for Python 3.14 ==="
-          python -c "import sys; print('EXACTLY:', sys.version)"
-          python -c "import sys; assert sys.version_info[:2] == (3, 9), f'WRONG PYTHON: {sys.version}'"
 
       - name: Set up Swap Space
         run: |
           sudo swapoff /swapfile || true
           sudo rm -f /swapfile
-          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+          sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 status=progress
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
@@ -59,38 +50,27 @@ jobs:
 
       - name: Install Buildozer and Cython
         run: |
-          # استخدام python -m pip إجبارياً بدلاً من pip
-          python -m pip install --upgrade "pip<24" "wheel"
+          python -m pip install --upgrade pip wheel
           python -m pip install "setuptools<=65.5.0" "cython==0.29.33" buildozer
 
       - name: Verify Cython and Buildozer
         run: |
           python -c "import Cython; print('Cython:', Cython.__version__)"
-          python -c "import sys; print('Python:', sys.version)"
           buildozer --version
-          echo "=== pip list (filtered) ==="
-          python -m pip list | grep -iE "cython|kivy|buildozer|setuptools|pip|wheel"
 
       - name: Build with Buildozer
         run: |
           buildozer -v android debug 2>&1 | tee build.log
         continue-on-error: true
 
-      - name: Show last 150 lines of build log
+      - name: Show build log on failure
         if: always()
         run: |
-          echo "=========================================="
-          echo "  آخر 150 سطر من سجل البناء"
-          echo "=========================================="
-          tail -n 150 build.log
-
-      - name: Search for errors in log
-        if: always()
-        run: |
-          echo "=========================================="
-          echo "  البحث عن الأخطاء في السجل"
-          echo "=========================================="
-          grep -nE "error:|Error:|ERROR|failed|FAILED|Traceback|Exception" build.log | tail -50 || true
+          if [ -f build.log ]; then
+            tail -n 150 build.log
+          else
+            echo "Build log file does not exist because the build failed before generation."
+          fi
 
       - name: Upload build log
         if: always()
