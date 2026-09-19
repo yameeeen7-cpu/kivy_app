@@ -76,7 +76,8 @@ jobs:
       - name: Build with Buildozer
         run: |
           unset ANDROID_NDK
-          export CFLAGS="-Wno-error -Wno-implicit-function-declaration -Wno-int-conversion"
+          export CFLAGS="-Wno-error -Wno-implicit-function-declaration -Wno-int-conversion -w"
+          export CPPFLAGS="-Wno-error -w"
           export LDFLAGS="-Wno-error"
           export MAKEFLAGS="-j1"
           buildozer -v android debug
