@@ -16,6 +16,13 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Set up Swap Space
+        run: |
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+
       - name: Install dependencies
         run: |
           sudo apt-get update
