@@ -71,7 +71,7 @@ jobs:
       - name: Install Buildozer and Cython
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install "setuptools<=65.5.0" "cython==0.29.36" buildozer
+          python3 -m pip install "setuptools<=65.5.0" "cython==0.29.32" buildozer
 
       - name: Build with Buildozer
         run: |
