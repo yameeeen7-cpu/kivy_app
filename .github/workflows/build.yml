@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
@@ -61,8 +61,8 @@ jobs:
 
       - name: Build with Buildozer
         run: |
-          export CFLAGS="-w"
-          export CXXFLAGS="-w"
+          export CFLAGS="-Wno-error -w"
+          export CPPFLAGS="-Wno-error -w"
           buildozer -v android debug
 
       - name: Upload APK
