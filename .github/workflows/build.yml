@@ -9,18 +9,20 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.9
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
       - name: Configure Safe Python 3.9 Path
         run: |
+          PYTHON_BIN=$(which python)
+          echo "Python 3.9 path: $PYTHON_BIN"
           mkdir -p $HOME/bin
-          ln -sf $(which python) $HOME/bin/python3
-          ln -sf $(which python) $HOME/bin/python
+          ln -sf $PYTHON_BIN $HOME/bin/python
+          ln -sf $PYTHON_BIN $HOME/bin/python3
           echo "$HOME/bin" >> $GITHUB_PATH
           python --version
           python3 --version
@@ -36,7 +38,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # إزالة أداة command-not-found لمنع مشكلة خطأ apt_pkg نهائياً
           sudo apt-get remove -y command-not-found || true
           sudo apt-get update
           sudo apt-get install -y \
@@ -67,8 +68,8 @@ jobs:
 
       - name: Install Buildozer and Cython
         run: |
-          pip install --upgrade pip
-          pip install "setuptools<=65.5.0" cython==0.29.32 buildozer
+          python -m pip install --upgrade pip
+          python -m pip install "setuptools<=65.5.0" cython==0.29.32 buildozer
 
       - name: Build with Buildozer
         run: |
