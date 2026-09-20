@@ -15,19 +15,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show environment (verification)
+      - name: Show environment
         run: |
           echo "=== Python ==="
           python3 --version
           which python3
-          echo "=== Pip ==="
-          python3 -m pip --version
           echo "=== Cython ==="
           python3 -c "import Cython; print(Cython.__version__)"
-          echo "=== Java ==="
-          java -version 2>&1 || echo "Java not in container"
-          echo "=== Swap ==="
-          free -h
+          echo "=== Working directory ==="
+          pwd
+          echo "=== Workspace ==="
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          ls -la
 
       - name: Cache Buildozer global directory
         uses: actions/cache@v4
@@ -48,15 +47,73 @@ jobs:
       - name: Build with Buildozer
         run: |
           yes | buildozer android debug 2>&1 | tee build.log
+        continue-on-error: true
 
-      - name: Show last 200 lines if failed
-        if: failure()
+      - name: Show last 100 lines of build log
+        if: always()
         run: |
-          echo "=== آخر 200 سطر ==="
-          tail -n 200 build.log
+          echo "=========================================="
+          echo "  آخر 100 سطر من سجل البناء"
+          echo "=========================================="
+          tail -n 100 build.log
+
+      - name: Search for errors
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "  البحث عن الأخطاء"
+          echo "=========================================="
+          grep -nE "error:|Error:|ERROR|FAILED|Traceback" build.log | tail -30 || echo "لا أخطاء ظاهرة"
+
+      - name: Locate APK file
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "  البحث عن ملف APK في كل المسارات"
+          echo "=========================================="
           echo ""
-          echo "=== الأخطاء ==="
-          grep -nE "error:|Error:|ERROR|FAILED|Traceback" build.log | tail -50 || true
+          echo "--- bin/ في جذر المشروع ---"
+          ls -la bin/ 2>/dev/null || echo "bin/ غير موجود"
+          echo ""
+          echo "--- البحث الشامل عن *.apk ---"
+          find / -name "*.apk" -type f 2>/dev/null | head -20 || echo "لا APK"
+          echo ""
+          echo "--- البحث في .buildozer ---"
+          find .buildozer -name "*.apk" -type f 2>/dev/null || echo "لا APK في .buildozer"
+          echo ""
+          echo "--- البحث عن أي مجلد bin ---"
+          find / -type d -name "bin" 2>/dev/null | head -10 || echo "لا مجلد bin"
+          echo ""
+          echo "--- عرض كل الملفات في الجذر ---"
+          ls -la
+
+      - name: Prepare APK for upload
+        if: always()
+        run: |
+          mkdir -p /tmp/apk-output
+          # البحث في كل المسارات المحتملة
+          for path in bin/*.apk .buildozer/android/platform/build-*/dists/*/bin/*.apk /root/.buildozer/**/*.apk; do
+            if ls $path 1> /dev/null 2>&1; then
+              echo "وجدت APK في: $path"
+              cp $path /tmp/apk-output/
+            fi
+          done
+          # نسخ أي APK موجود في النظام
+          find / -name "*.apk" -type f 2>/dev/null | while read apk; do
+            echo "نسخ: $apk"
+            cp "$apk" /tmp/apk-output/ 2>/dev/null || true
+          done
+          echo ""
+          echo "=== محتوى /tmp/apk-output ==="
+          ls -la /tmp/apk-output/
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: /tmp/apk-output/*.apk
+          if-no-files-found: warn
 
       - name: Upload build log
         if: always()
@@ -64,10 +121,3 @@ jobs:
         with:
           name: build-log
           path: build.log
-
-      - name: Upload APK
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk
-          path: bin/*.apk
