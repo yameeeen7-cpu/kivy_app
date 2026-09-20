@@ -12,21 +12,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show environment
+      - name: Prepare directories
         run: |
-          echo "=== Docker ==="
-          docker --version
-          echo "=== Workspace ==="
-          pwd
+          mkdir -p "$HOME/.buildozer"
+          mkdir -p bin
+          echo "=== Files in workspace ==="
           ls -la
-          echo "=== buildozer.spec ==="
-          cat buildozer.spec
-          echo "=== main.py (first 10 lines) ==="
-          head -10 main.py
+          echo "=== HOME ==="
+          echo $HOME
+          echo "=== buildozer.spec exists? ==="
+          ls -la buildozer.spec
+          echo "=== main.py exists? ==="
+          ls -la main.py
 
       - name: Pull Buildozer Docker image
         run: |
           docker pull kivy/buildozer:latest
+
+      - name: Test Docker container
+        run: |
+          echo "=== Testing container ==="
+          docker run --rm kivy/buildozer:latest sh -c "echo 'Container works'; pwd; ls -la /home/user/"
+          echo "=== Container test done ==="
 
       - name: Build APK inside Docker
         run: |
@@ -35,21 +42,8 @@ jobs:
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -w /home/user/hostcwd \
             kivy/buildozer:latest \
-            sh -c "
-              echo '===== INSIDE CONTAINER ====='
-              echo '--- PWD ---'
-              pwd
-              echo '--- Files ---'
-              ls -la
-              echo '--- buildozer.spec ---'
-              cat buildozer.spec || echo 'BUILDOZER.SPEC NOT FOUND'
-              echo '--- main.py (first 5 lines) ---'
-              head -5 main.py || echo 'MAIN.PY NOT FOUND'
-              echo '--- Buildozer version ---'
-              buildozer --version
-              echo '===== STARTING BUILD ====='
-              buildozer -v android debug
-            " 2>&1 | tee build.log
+            sh -c "ls -la && echo '--- buildozer.spec ---' && cat buildozer.spec && echo '--- starting build ---' && buildozer -v android debug" \
+            2>&1 | tee build.log
 
       - name: Show build results
         if: always()
@@ -57,9 +51,9 @@ jobs:
           echo "=== bin/ ==="
           ls -la bin/ 2>/dev/null || echo "bin not found"
           echo "=== Search for APK ==="
-          find . -name "*.apk" -type f 2>/dev/null || echo "no APK found"
-          echo "=== Last 100 lines of log ==="
-          tail -n 100 build.log 2>/dev/null || echo "no log"
+          find . -name "*.apk" -type f 2>/dev/null || echo "no APK"
+          echo "=== Last 50 lines ==="
+          tail -n 50 build.log 2>/dev/null || echo "no log"
 
       - name: Upload build log
         if: always()
