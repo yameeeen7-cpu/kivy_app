@@ -22,27 +22,56 @@ jobs:
           echo "=== Workspace ==="
           pwd
           ls -la
+          echo "=== Check for leftover cache ==="
+          ls -la .buildozer 2>/dev/null || echo "✅ No .buildozer"
+          ls -la ~/.buildozer 2>/dev/null || echo "✅ No ~/.buildozer"
+          ls -la bin/ 2>/dev/null || echo "✅ No bin/"
 
-      - name: Free disk space (critical)
+      - name: Free disk space
         run: |
           echo "=== Before cleanup ==="
           df -h
-          # حذف الملفات غير الضرورية
-          rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk 2>/dev/null || true
-          rm -rf /opt/ghc /usr/local/share/boost 2>/dev/null || true
+          rm -rf /usr/share/dotnet /usr/local/share/boost 2>/dev/null || true
           apt-get clean || true
           echo "=== After cleanup ==="
           df -h
 
-      - name: Build with Buildozer
+      - name: Clean Buildozer state
+        run: |
+          echo "=== حذف جميع ملفات Cache القديمة ==="
+          rm -rf .buildozer
+          rm -rf ~/.buildozer
+          rm -rf bin
+          echo "✅ تم الحذف"
+          echo ""
+          echo "=== التحقق ==="
+          ls -la .buildozer 2>/dev/null && echo "❌ .buildozer لا يزال موجوداً" || echo "✅ .buildozer محذوف"
+          ls -la ~/.buildozer 2>/dev/null && echo "❌ ~/.buildozer لا يزال موجوداً" || echo "✅ ~/.buildozer محذوف"
+
+      - name: Verify buildozer.spec exists
+        run: |
+          if [ ! -f buildozer.spec ]; then
+            echo "❌ buildozer.spec غير موجود!"
+            exit 1
+          fi
+          echo "✅ buildozer.spec موجود"
+          echo "=== محتوى buildozer.spec ==="
+          cat buildozer.spec
+
+      - name: Build with Buildozer (clean)
         id: build_step
         run: |
           echo "=== START BUILD ==="
-          buildozer android debug 2>&1 | tee build.log
-          echo "=== END BUILD with exit code $? ==="
-          echo "=== Checking for APK immediately after build ==="
+          echo "الوقت الحالي: $(date)"
+          buildozer -v android debug 2>&1 | tee build.log
+          EXIT_CODE=$?
+          echo "=== END BUILD with exit code $EXIT_CODE ==="
+          echo "الوقت الحالي: $(date)"
+          echo ""
+          echo "=== Checking for APK immediately ==="
           ls -la bin/ 2>/dev/null || echo "bin/ NOT FOUND"
-          find . -name "*.apk" -type f 2>/dev/null || echo "NO APK FOUND"
+          find . -name "*.apk" -type f 2>/dev/null || echo "NO APK"
+          exit $EXIT_CODE
         continue-on-error: true
 
       - name: Check build results
@@ -59,17 +88,17 @@ jobs:
           find / -name "*.apk" -type f 2>/dev/null | head -20 || echo "❌ لا APK"
           echo ""
           echo "=========================================="
-          echo "  3. آخر 150 سطر من السجل"
+          echo "  3. آخر 200 سطر من السجل"
           echo "=========================================="
-          tail -n 150 build.log
+          tail -n 200 build.log
           echo ""
           echo "=========================================="
-          echo "  4. هل يوجد خطأ في السجل؟"
+          echo "  4. الأخطاء في السجل"
           echo "=========================================="
-          grep -nE "error:|Error:|ERROR|FAILED|Traceback|BUILD FAILED" build.log | tail -30 || echo "✅ لا أخطاء واضحة"
+          grep -nE "error:|Error:|ERROR|FAILED|Traceback|BUILD FAILED|No space" build.log | tail -40 || echo "✅ لا أخطاء واضحة"
           echo ""
           echo "=========================================="
-          echo "  5. المساحة المتبقية"
+          echo "  5. المساحة"
           echo "=========================================="
           df -h
 
@@ -80,7 +109,7 @@ jobs:
           name: build-log
           path: build.log
 
-      - name: Upload APK (only if exists)
+      - name: Upload APK (if exists)
         if: always()
         uses: actions/upload-artifact@v4
         with:
