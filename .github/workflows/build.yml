@@ -12,7 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. تثبيت Python 3.10
       - name: 1. Install Python 3.10
         run: |
           sudo add-apt-repository ppa:deadsnakes/ppa -y
@@ -20,62 +19,52 @@ jobs:
           sudo apt-get install -y \
             python3.10 python3.10-dev python3.10-venv python3.10-distutils
 
-      # 2. إنشاء Virtual Environment
       - name: 2. Create venv
         run: |
           python3.10 -m venv venv
           venv/bin/python --version
-          venv/bin/pip --version
 
-      # 3. تثبيت تبعيات النظام (مع automake)
       - name: 3. Install system dependencies
         run: |
-          sudo apt-get update
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk \
             autoconf automake libtool pkg-config zlib1g-dev \
             libncurses5-dev libncursesw5-dev libtinfo5 cmake \
-            libffi-dev libssl-dev libltdl-dev \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            patch
+            libffi-dev libssl-dev \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 
-      # 4. تثبيت Buildozer و Cython
       - name: 4. Install Buildozer
         run: |
           venv/bin/pip install --upgrade pip wheel
           venv/bin/pip install "cython==0.29.33" "setuptools<=65.5.0"
           venv/bin/pip install buildozer
 
-      # 5. التحقق من الإصدارات
       - name: 5. Verify versions
         run: |
           venv/bin/python --version
           venv/bin/python -c "import Cython; print('Cython:', Cython.__version__)"
           venv/bin/buildozer --version
 
-      # 6. قبول رخص أندرويد مسبقاً
       - name: 6. Pre-accept Android SDK licenses
         run: |
-          mkdir -p ~/.android
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.android/licenses_hash.txt
-          echo "✅ Licenses pre-accepted"
+          for dir in $ANDROID_HOME/licenses /usr/local/lib/android/sdk/licenses; do
+            mkdir -p "$dir" 2>/dev/null || true
+            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$dir/android-sdk-license" 2>/dev/null || true
+            echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$dir/android-sdk-preview-license" 2>/dev/null || true
+          done
 
-      # 7. Build APK (مع العزل التام لمتغيرات النظام لمنع أي تعارض)
+      # 🔴 التعديل الحاسم: PIP_USER=0
       - name: 7. Build APK
         run: |
           rm -rf .buildozer ~/.buildozer bin
           export PATH="$PWD/venv/bin:$PATH"
-          
-          unset ANDROID_HOME
-          unset ANDROID_SDK_ROOT
-          unset ANDROID_NDK_HOME
-          unset ANDROID_NDK_LATEST_HOME
-          unset ANDROID_NDK_ROOT
+          export PIP_USER=0
+          export ANDROID_HOME="/usr/local/lib/android/sdk"
+          export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
           
           buildozer -v android debug
         timeout-minutes: 60
 
-      # 8. رفع APK
       - name: 8. Upload APK
         if: always()
         uses: actions/upload-artifact@v4
