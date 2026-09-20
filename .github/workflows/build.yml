@@ -12,21 +12,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 1. Install Python 3.10
+      # 🔴 الخطوة الحاسمة: إزالة كل إصدارات Python الحديثة
+      - name: 1. Purge Python 3.11+ and install Python 3.10
         run: |
+          # إزالة Python 3.11, 3.12, 3.13, 3.14 من hosttoolcache
+          sudo rm -rf /opt/hostedtoolcache/Python/3.11* || true
+          sudo rm -rf /opt/hostedtoolcache/Python/3.12* || true
+          sudo rm -rf /opt/hostedtoolcache/Python/3.13* || true
+          sudo rm -rf /opt/hostedtoolcache/Python/3.14* || true
+          
+          # تثبيت Python 3.10
           sudo add-apt-repository ppa:deadsnakes/ppa -y
           sudo apt-get update
           sudo apt-get install -y \
             python3.10 python3.10-dev python3.10-venv python3.10-distutils
-
-      - name: 2. Set Python 3.10 as default
-        run: |
+          
+          # جعله افتراضياً
           sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
           sudo update-alternatives --set python3 /usr/bin/python3.10
+          
+          # التحقق
           python3 --version
-          python3 -m pip --version
+          which python3
 
-      - name: 3. Install system dependencies
+      - name: 2. Install system dependencies
         run: |
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk \
@@ -35,31 +44,42 @@ jobs:
             libffi-dev libssl-dev \
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 
-      # 🔴 لا venv — تثبيت مباشر مع --user
-      - name: 4. Install Buildozer with --user
+      - name: 3. Install Buildozer with --user
         run: |
           python3 -m pip install --user --upgrade pip wheel
           python3 -m pip install --user "cython==0.29.33" "setuptools<=65.5.0"
           python3 -m pip install --user buildozer
 
-      - name: 5. Add ~/.local/bin to PATH
+      - name: 4. Add ~/.local/bin to PATH
         run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-          echo "PATH=$PATH"
 
-      - name: 6. Verify Buildozer
+      - name: 5. Verify Buildozer
         run: |
           python3 --version
           python3 -c "import Cython; print('Cython:', Cython.__version__)"
           buildozer --version
 
-      - name: 7. Build APK
+      # 🔴 الحل الجذري: إجبار p4a على Python 3.10
+      - name: 6. Build APK
         run: |
           rm -rf .buildozer ~/.buildozer bin
+          
+          export PYTHON_VERSION=3.10
+          export P4A_PYTHON_VERSION=3.10
+          
+          echo "=== Python versions available ==="
+          ls /usr/bin/python* 2>/dev/null
+          ls /opt/hostedtoolcache/Python/ 2>/dev/null || echo "no hostedtoolcache"
+          echo ""
+          echo "=== python3 ==="
+          python3 --version
+          which python3
+          
           buildozer -v android debug
         timeout-minutes: 60
 
-      - name: 8. Upload APK
+      - name: 7. Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
