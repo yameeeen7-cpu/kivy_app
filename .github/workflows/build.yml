@@ -12,26 +12,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Create swap space
+        run: |
+          sudo swapoff -a || true
+          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Prepare directories
         run: |
           mkdir -p "$HOME/.buildozer"
           mkdir -p bin
-          echo "=== Files in workspace ==="
-          ls -la
-          echo "=== buildozer.spec exists? ==="
-          ls -la buildozer.spec
-          echo "=== main.py exists? ==="
-          ls -la main.py
 
       - name: Pull Buildozer Docker image
-        run: |
-          docker pull kivy/buildozer:latest
-
-      - name: Test Docker container
-        run: |
-          echo "=== Testing container ==="
-          docker run --rm --entrypoint sh kivy/buildozer:latest -c "echo 'Container works'; pwd"
-          echo "=== Container test done ==="
+        run: docker pull kivy/buildozer:latest
 
       - name: Build APK inside Docker
         run: |
@@ -42,17 +38,14 @@ jobs:
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -w /home/user/hostcwd \
             kivy/buildozer:latest \
-            -c "echo '===== INSIDE CONTAINER =====' && ls -la && echo '===== BUILDING =====' && buildozer -v android debug" \
+            -c "buildozer -v android debug" \
             2>&1 | tee build.log
 
       - name: Show build results
         if: always()
         run: |
-          echo "=== bin/ ==="
-          ls -la bin/ 2>/dev/null || echo "bin not found"
-          echo "=== Search for APK ==="
+          ls -la bin/ 2>/dev/null || echo "no bin"
           find . -name "*.apk" -type f 2>/dev/null || echo "no APK"
-          echo "=== Last 50 lines ==="
           tail -n 50 build.log 2>/dev/null || echo "no log"
 
       - name: Upload build log
@@ -61,7 +54,6 @@ jobs:
         with:
           name: build-log
           path: build.log
-          if-no-files-found: warn
 
       - name: Upload APK
         if: always()
