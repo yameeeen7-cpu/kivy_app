@@ -19,6 +19,7 @@ android.archs = arm64-v8a, armeabi-v7a
 android.accept_sdk_license = True
 
 p4a.branch = master
+p4a.python_version = 3.10
 
 [buildozer]
 log_level = 2
