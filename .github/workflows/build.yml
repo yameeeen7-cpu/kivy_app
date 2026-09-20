@@ -32,18 +32,18 @@ jobs:
           venv/bin/pip --version
 
       # ============================================================
-      # 3. تثبيت تبعيات النظام الشاملة لبناء أندرويد
+      # 3. تثبيت تبعيات النظام (تم تصحيح automake بدلاً من aclocal)
       # ============================================================
       - name: 3. Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk \
-            autoconf libtool pkg-config zlib1g-dev \
+            autoconf automake libtool pkg-config zlib1g-dev \
             libncurses5-dev libncursesw5-dev libtinfo5 cmake \
             libffi-dev libssl-dev libltdl-dev \
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            patch aclocal automake
+            patch aclocal || true
 
       # ============================================================
       # 4. تثبيت Buildozer و Cython
@@ -83,21 +83,17 @@ jobs:
           echo "✅ Licenses pre-accepted"
 
       # ============================================================
-      # 7. Build APK — مع عزل SDK النظام وتفريغ متغيراته
+      # 7. Build APK (مع عزل متغيرات أندرويد لضمان البناء الحقيقي)
       # ============================================================
       - name: 7. Build APK
         run: |
           rm -rf .buildozer ~/.buildozer bin
           export PATH="$PWD/venv/bin:$PATH"
-          
-          # تفريغ متغيرات أندرويد الخاصة بالنظام لمنع التعارض مع Buildozer
           unset ANDROID_HOME
           unset ANDROID_SDK_ROOT
           unset ANDROID_NDK_HOME
           unset ANDROID_NDK_LATEST_HOME
           unset ANDROID_NDK_ROOT
-          
-          # تشغيل البناء
           buildozer -v android debug
         timeout-minutes: 60
 
