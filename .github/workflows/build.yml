@@ -31,18 +31,19 @@ jobs:
 
       - name: Test Docker container
         run: |
-          echo "=== Testing container ==="
-          docker run --rm kivy/buildozer:latest sh -c "echo 'Container works'; pwd; ls -la /home/user/"
+          echo "=== Testing container with entrypoint override ==="
+          docker run --rm --entrypoint sh kivy/buildozer:latest -c "echo 'Container works'; pwd; ls -la /home/user/"
           echo "=== Container test done ==="
 
       - name: Build APK inside Docker
         run: |
           docker run --rm \
+            --entrypoint sh \
             -v "$PWD":/home/user/hostcwd \
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -w /home/user/hostcwd \
             kivy/buildozer:latest \
-            sh -c "ls -la && echo '--- buildozer.spec ---' && cat buildozer.spec && echo '--- starting build ---' && buildozer -v android debug" \
+            -c "ls -la && echo '--- buildozer.spec ---' && cat buildozer.spec && echo '--- starting build ---' && buildozer -v android debug" \
             2>&1 | tee build.log
 
       - name: Show build results
