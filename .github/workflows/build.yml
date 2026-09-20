@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK (Diagnostic)
 
 on:
   push:
@@ -15,101 +15,122 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show environment
+      # ============================================================
+      # الخطوة 1: عرض كل شيء عن البيئة
+      # ============================================================
+      - name: 1. Environment dump
         run: |
-          echo "=== Python ==="
-          python3 --version
-          echo "=== Workspace ==="
-          pwd
-          ls -la
-          echo "=== Check for leftover cache ==="
-          ls -la .buildozer 2>/dev/null || echo "✅ No .buildozer"
-          ls -la ~/.buildozer 2>/dev/null || echo "✅ No ~/.buildozer"
-          ls -la bin/ 2>/dev/null || echo "✅ No bin/"
-
-      - name: Free disk space
-        run: |
-          echo "=== Before cleanup ==="
-          df -h
-          rm -rf /usr/share/dotnet /usr/local/share/boost 2>/dev/null || true
-          apt-get clean || true
-          echo "=== After cleanup ==="
-          df -h
-
-      - name: Clean Buildozer state
-        run: |
-          echo "=== حذف جميع ملفات Cache القديمة ==="
-          rm -rf .buildozer
-          rm -rf ~/.buildozer
-          rm -rf bin
-          echo "✅ تم الحذف"
+          echo "=========================================="
+          echo "  1. البيئة"
+          echo "=========================================="
+          echo "PWD: $(pwd)"
+          echo "USER: $(whoami)"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
           echo ""
-          echo "=== التحقق ==="
-          ls -la .buildozer 2>/dev/null && echo "❌ .buildozer لا يزال موجوداً" || echo "✅ .buildozer محذوف"
-          ls -la ~/.buildozer 2>/dev/null && echo "❌ ~/.buildozer لا يزال موجوداً" || echo "✅ ~/.buildozer محذوف"
-
-      - name: Verify buildozer.spec exists
-        run: |
-          if [ ! -f buildozer.spec ]; then
-            echo "❌ buildozer.spec غير موجود!"
-            exit 1
-          fi
-          echo "✅ buildozer.spec موجود"
+          echo "=== Python ==="
+          which python python3
+          python3 --version
+          echo ""
+          echo "=== Buildozer ==="
+          which buildozer
+          buildozer --version
+          echo ""
+          echo "=== Cython ==="
+          python3 -c "import Cython; print(Cython.__version__)" 2>&1
+          echo ""
+          echo "=== Java ==="
+          which java
+          java -version 2>&1
+          echo ""
+          echo "=== Files in workspace ==="
+          ls -la
+          echo ""
           echo "=== محتوى buildozer.spec ==="
           cat buildozer.spec
-
-      - name: Build with Buildozer (clean)
-        id: build_step
-        run: |
-          echo "=== START BUILD ==="
-          echo "الوقت الحالي: $(date)"
-          buildozer -v android debug 2>&1 | tee build.log
-          EXIT_CODE=$?
-          echo "=== END BUILD with exit code $EXIT_CODE ==="
-          echo "الوقت الحالي: $(date)"
           echo ""
-          echo "=== Checking for APK immediately ==="
-          ls -la bin/ 2>/dev/null || echo "bin/ NOT FOUND"
-          find . -name "*.apk" -type f 2>/dev/null || echo "NO APK"
-          exit $EXIT_CODE
-        continue-on-error: true
+          echo "=== محتوى main.py (أول 20 سطر) ==="
+          head -20 main.py
 
-      - name: Check build results
+      # ============================================================
+      # الخطوة 2: Clean State
+      # ============================================================
+      - name: 2. Clean state
+        run: |
+          rm -rf .buildozer ~/.buildozer bin
+          echo "✅ Cleaned"
+
+      # ============================================================
+      # الخطوة 3: البناء مع كل المخرجات
+      # ============================================================
+      - name: 3. Build with full output
+        id: build
+        continue-on-error: true
+        run: |
+          echo "=========================================="
+          echo "  بدء البناء: $(date)"
+          echo "=========================================="
+          echo ""
+          
+          # تشغيل البناء مع -v (verbose) وحفظ السجلات
+          buildozer -v android debug > /tmp/build_output.log 2>&1
+          BUILD_EXIT=$?
+          
+          echo "=========================================="
+          echo "  انتهى البناء: $(date)"
+          echo "  Exit code: $BUILD_EXIT"
+          echo "=========================================="
+          echo ""
+          
+          # طباعة كل المخرجات (آخر 500 سطر)
+          echo "=========================================="
+          echo "  كل مخرجات البناء (آخر 500 سطر)"
+          echo "=========================================="
+          tail -n 500 /tmp/build_output.log
+          
+          echo ""
+          echo "=========================================="
+          echo "  عدد أسطر السجل الكامل:"
+          echo "=========================================="
+          wc -l /tmp/build_output.log
+          
+          echo ""
+          echo "=========================================="
+          echo "  البحث عن الأخطاء"
+          echo "=========================================="
+          grep -nE "error|Error|ERROR|FAILED|Traceback|Exception|No such|not found" /tmp/build_output.log | head -50 || echo "لا أخطاء واضحة"
+          
+          exit 0
+
+      # ============================================================
+      # الخطوة 4: عرض النتائج
+      # ============================================================
+      - name: 4. Check APK
         if: always()
         run: |
-          echo "=========================================="
-          echo "  1. هل bin/ موجود؟"
-          echo "=========================================="
-          ls -la bin/ 2>/dev/null && echo "✅ bin/ موجود" || echo "❌ bin/ غير موجود"
+          echo "=== bin/ ==="
+          ls -la bin/ 2>/dev/null || echo "❌ bin/ فارغ أو غير موجود"
           echo ""
-          echo "=========================================="
-          echo "  2. البحث عن APK في كل مكان"
-          echo "=========================================="
+          echo "=== البحث الشامل عن APK ==="
           find / -name "*.apk" -type f 2>/dev/null | head -20 || echo "❌ لا APK"
           echo ""
-          echo "=========================================="
-          echo "  3. آخر 200 سطر من السجل"
-          echo "=========================================="
-          tail -n 200 build.log
-          echo ""
-          echo "=========================================="
-          echo "  4. الأخطاء في السجل"
-          echo "=========================================="
-          grep -nE "error:|Error:|ERROR|FAILED|Traceback|BUILD FAILED|No space" build.log | tail -40 || echo "✅ لا أخطاء واضحة"
-          echo ""
-          echo "=========================================="
-          echo "  5. المساحة"
-          echo "=========================================="
-          df -h
+          echo "=== .buildozer ==="
+          ls -la .buildozer/ 2>/dev/null || echo "❌ .buildozer غير موجود"
 
-      - name: Upload build log
+      # ============================================================
+      # الخطوة 5: رفع السجلات
+      # ============================================================
+      - name: 5. Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log
-          path: build.log
+          name: build-logs
+          path: |
+            /tmp/build_output.log
+            buildozer.spec
+            main.py
+          if-no-files-found: warn
 
-      - name: Upload APK (if exists)
+      - name: 6. Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
