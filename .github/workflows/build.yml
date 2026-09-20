@@ -1,4 +1,4 @@
-name: Build APK (Docker)
+name: Build APK
 
 on:
   push:
@@ -19,101 +19,59 @@ jobs:
         run: |
           echo "=== Python ==="
           python3 --version
-          which python3
-          echo "=== Cython ==="
-          python3 -c "import Cython; print(Cython.__version__)"
-          echo "=== Working directory ==="
-          pwd
           echo "=== Workspace ==="
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          pwd
           ls -la
 
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-global-
-
-      - name: Cache Buildozer project directory
-        uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: buildozer-project-${{ github.sha }}
-          restore-keys: |
-            buildozer-project-
+      - name: Free disk space (critical)
+        run: |
+          echo "=== Before cleanup ==="
+          df -h
+          # حذف الملفات غير الضرورية
+          rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk 2>/dev/null || true
+          rm -rf /opt/ghc /usr/local/share/boost 2>/dev/null || true
+          apt-get clean || true
+          echo "=== After cleanup ==="
+          df -h
 
       - name: Build with Buildozer
+        id: build_step
         run: |
-          yes | buildozer android debug 2>&1 | tee build.log
+          echo "=== START BUILD ==="
+          buildozer android debug 2>&1 | tee build.log
+          echo "=== END BUILD with exit code $? ==="
+          echo "=== Checking for APK immediately after build ==="
+          ls -la bin/ 2>/dev/null || echo "bin/ NOT FOUND"
+          find . -name "*.apk" -type f 2>/dev/null || echo "NO APK FOUND"
         continue-on-error: true
 
-      - name: Show last 100 lines of build log
+      - name: Check build results
         if: always()
         run: |
           echo "=========================================="
-          echo "  آخر 100 سطر من سجل البناء"
+          echo "  1. هل bin/ موجود؟"
           echo "=========================================="
-          tail -n 100 build.log
-
-      - name: Search for errors
-        if: always()
-        run: |
+          ls -la bin/ 2>/dev/null && echo "✅ bin/ موجود" || echo "❌ bin/ غير موجود"
+          echo ""
           echo "=========================================="
-          echo "  البحث عن الأخطاء"
+          echo "  2. البحث عن APK في كل مكان"
           echo "=========================================="
-          grep -nE "error:|Error:|ERROR|FAILED|Traceback" build.log | tail -30 || echo "لا أخطاء ظاهرة"
-
-      - name: Locate APK file
-        if: always()
-        run: |
+          find / -name "*.apk" -type f 2>/dev/null | head -20 || echo "❌ لا APK"
+          echo ""
           echo "=========================================="
-          echo "  البحث عن ملف APK في كل المسارات"
+          echo "  3. آخر 150 سطر من السجل"
           echo "=========================================="
+          tail -n 150 build.log
           echo ""
-          echo "--- bin/ في جذر المشروع ---"
-          ls -la bin/ 2>/dev/null || echo "bin/ غير موجود"
+          echo "=========================================="
+          echo "  4. هل يوجد خطأ في السجل؟"
+          echo "=========================================="
+          grep -nE "error:|Error:|ERROR|FAILED|Traceback|BUILD FAILED" build.log | tail -30 || echo "✅ لا أخطاء واضحة"
           echo ""
-          echo "--- البحث الشامل عن *.apk ---"
-          find / -name "*.apk" -type f 2>/dev/null | head -20 || echo "لا APK"
-          echo ""
-          echo "--- البحث في .buildozer ---"
-          find .buildozer -name "*.apk" -type f 2>/dev/null || echo "لا APK في .buildozer"
-          echo ""
-          echo "--- البحث عن أي مجلد bin ---"
-          find / -type d -name "bin" 2>/dev/null | head -10 || echo "لا مجلد bin"
-          echo ""
-          echo "--- عرض كل الملفات في الجذر ---"
-          ls -la
-
-      - name: Prepare APK for upload
-        if: always()
-        run: |
-          mkdir -p /tmp/apk-output
-          # البحث في كل المسارات المحتملة
-          for path in bin/*.apk .buildozer/android/platform/build-*/dists/*/bin/*.apk /root/.buildozer/**/*.apk; do
-            if ls $path 1> /dev/null 2>&1; then
-              echo "وجدت APK في: $path"
-              cp $path /tmp/apk-output/
-            fi
-          done
-          # نسخ أي APK موجود في النظام
-          find / -name "*.apk" -type f 2>/dev/null | while read apk; do
-            echo "نسخ: $apk"
-            cp "$apk" /tmp/apk-output/ 2>/dev/null || true
-          done
-          echo ""
-          echo "=== محتوى /tmp/apk-output ==="
-          ls -la /tmp/apk-output/
-
-      - name: Upload APK
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk
-          path: /tmp/apk-output/*.apk
-          if-no-files-found: warn
+          echo "=========================================="
+          echo "  5. المساحة المتبقية"
+          echo "=========================================="
+          df -h
 
       - name: Upload build log
         if: always()
@@ -121,3 +79,13 @@ jobs:
         with:
           name: build-log
           path: build.log
+
+      - name: Upload APK (only if exists)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: |
+            bin/*.apk
+            **/*.apk
+          if-no-files-found: warn
