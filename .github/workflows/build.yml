@@ -1,56 +1,86 @@
-name: CI
+name: Build APK
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
+      # ============================================================
+      # 1. تثبيت Python 3.10 يدوياً (لتجنب الإصدار الافتراضي الحديث)
+      # ============================================================
+      - name: 1. Install Python 3.10 manually
         run: |
+          sudo add-apt-repository ppa:deadsnakes/ppa -y
           sudo apt-get update
           sudo apt-get install -y \
-            python3-pip \
-            build-setup \
-            git \
-            zip \
-            unzip \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libsqlite3-dev \
-            libffi-dev \
-            libssl-dev
+            python3.10 python3.10-dev python3.10-venv python3.10-distutils \
+            python3.10-tk
 
-      - name: Install Buildozer and Cython
+      # ============================================================
+      # 2. إنشاء بيئة معزولة (Virtual Environment)
+      # ============================================================
+      - name: 2. Create virtualenv
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install "cython==0.29.33" "setuptools<=65.5.0"
-          python -m pip install git+https://github.com/kivy/buildozer
+          python3.10 -m venv venv
+          venv/bin/python --version
+          venv/bin/pip --version
 
-      - name: Build APK with Buildozer
+      # ============================================================
+      # 3. تثبيت تبعيات النظام
+      # ============================================================
+      - name: 3. Install system dependencies
+        run: |
+          sudo apt-get install -y \
+            git zip unzip openjdk-17-jdk \
+            autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5 cmake \
+            libffi-dev libssl-dev \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+
+      # ============================================================
+      # 4. تثبيت Buildozer و Cython داخل البيئة المعزولة
+      # ============================================================
+      - name: 4. Install Buildozer and Cython
+        run: |
+          venv/bin/pip install --upgrade pip wheel
+          venv/bin/pip install "cython==0.29.33" "setuptools<=65.5.0"
+          venv/bin/pip install buildozer
+
+      # ============================================================
+      # 5. التحقق من الإصدارات
+      # ============================================================
+      - name: 5. Verify versions
+        run: |
+          echo "=== Python ==="
+          venv/bin/python --version
+          echo "=== Cython ==="
+          venv/bin/python -c "import Cython; print(Cython.__version__)"
+          echo "=== Buildozer ==="
+          venv/bin/buildozer --version
+
+      # ============================================================
+      # 6. البناء
+      # ============================================================
+      - name: 6. Build APK
         run: |
           rm -rf .buildozer ~/.buildozer bin
-          yes | buildozer -v android debug
+          export PATH="$PWD/venv/bin:$PATH"
+          yes | venv/bin/buildozer -v android debug
 
-      - name: Upload APK Artifact
+      # ============================================================
+      # 7. رفع APK
+      # ============================================================
+      - name: 7. Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: package
+          name: apk
           path: bin/*.apk
+          if-no-files-found: warn
