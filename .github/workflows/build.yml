@@ -18,8 +18,6 @@ jobs:
           mkdir -p bin
           echo "=== Files in workspace ==="
           ls -la
-          echo "=== HOME ==="
-          echo $HOME
           echo "=== buildozer.spec exists? ==="
           ls -la buildozer.spec
           echo "=== main.py exists? ==="
@@ -31,19 +29,20 @@ jobs:
 
       - name: Test Docker container
         run: |
-          echo "=== Testing container with entrypoint override ==="
-          docker run --rm --entrypoint sh kivy/buildozer:latest -c "echo 'Container works'; pwd; ls -la /home/user/"
+          echo "=== Testing container ==="
+          docker run --rm --entrypoint sh kivy/buildozer:latest -c "echo 'Container works'; pwd"
           echo "=== Container test done ==="
 
       - name: Build APK inside Docker
         run: |
+          set -o pipefail
           docker run --rm \
             --entrypoint sh \
             -v "$PWD":/home/user/hostcwd \
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -w /home/user/hostcwd \
             kivy/buildozer:latest \
-            -c "ls -la && echo '--- buildozer.spec ---' && cat buildozer.spec && echo '--- starting build ---' && buildozer -v android debug" \
+            -c "echo '===== INSIDE CONTAINER =====' && ls -la && echo '===== BUILDING =====' && buildozer -v android debug" \
             2>&1 | tee build.log
 
       - name: Show build results
