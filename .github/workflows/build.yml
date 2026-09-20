@@ -1,4 +1,4 @@
-name: Build APK (Docker)
+name: Build APK
 
 on:
   push:
@@ -8,53 +8,39 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    container:
-      image: kivy/buildozer:latest
-      options: --user root
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Show environment
         run: |
-          echo "=== Python ==="
-          python3 --version
-          which python3
-          echo "=== Cython ==="
-          python3 -c "import Cython; print(Cython.__version__)"
-          echo "=== Java ==="
-          java -version 2>&1 || echo "Java not in container"
-          free -h
+          echo "=== Docker ==="
+          docker --version
+          echo "=== Workspace ==="
+          pwd
+          ls -la
 
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-global-
-
-      - name: Cache Buildozer project directory
-        uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: buildozer-project-${{ github.sha }}
-          restore-keys: |
-            buildozer-project-
-
-      - name: Build with Buildozer
+      - name: Pull Buildozer Docker image
         run: |
-          rm -rf .buildozer ~/.buildozer bin
-          buildozer -v android debug 2>&1 | tee build.log
+          docker pull kivy/buildozer:latest
+          docker images
 
-      - name: Show last 200 lines if failed
-        if: failure()
+      - name: Build APK inside Docker
         run: |
-          echo "=== آخر 200 سطر ==="
-          tail -n 200 build.log
-          echo ""
-          echo "=== الأخطاء ==="
-          grep -nE "error:|Error:|ERROR|FAILED|Traceback" build.log | tail -50 || true
+          docker run --rm \
+            -v "$PWD":/home/user/hostcwd \
+            -v "$HOME/.buildozer":/home/user/.buildozer \
+            -w /home/user/hostcwd \
+            kivy/buildozer:latest \
+            buildozer -v android debug 2>&1 | tee build.log
+
+      - name: Show build results
+        if: always()
+        run: |
+          echo "=== bin/ ==="
+          ls -la bin/ 2>/dev/null || echo "bin غير موجود"
+          echo "=== البحث عن APK ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "لا APK"
 
       - name: Upload build log
         if: always()
