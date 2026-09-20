@@ -13,20 +13,19 @@ jobs:
       - uses: actions/checkout@v4
 
       # ============================================================
-      # 1. تثبيت Python 3.10 يدوياً (لتجنب الإصدار الافتراضي الحديث)
+      # 1. تثبيت Python 3.10
       # ============================================================
-      - name: 1. Install Python 3.10 manually
+      - name: 1. Install Python 3.10
         run: |
           sudo add-apt-repository ppa:deadsnakes/ppa -y
           sudo apt-get update
           sudo apt-get install -y \
-            python3.10 python3.10-dev python3.10-venv python3.10-distutils \
-            python3.10-tk
+            python3.10 python3.10-dev python3.10-venv python3.10-distutils
 
       # ============================================================
-      # 2. إنشاء بيئة معزولة (Virtual Environment)
+      # 2. إنشاء Virtual Environment
       # ============================================================
-      - name: 2. Create virtualenv
+      - name: 2. Create venv
         run: |
           python3.10 -m venv venv
           venv/bin/python --version
@@ -45,9 +44,9 @@ jobs:
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 
       # ============================================================
-      # 4. تثبيت Buildozer و Cython داخل البيئة المعزولة
+      # 4. تثبيت Buildozer
       # ============================================================
-      - name: 4. Install Buildozer and Cython
+      - name: 4. Install Buildozer
         run: |
           venv/bin/pip install --upgrade pip wheel
           venv/bin/pip install "cython==0.29.33" "setuptools<=65.5.0"
@@ -58,26 +57,43 @@ jobs:
       # ============================================================
       - name: 5. Verify versions
         run: |
-          echo "=== Python ==="
           venv/bin/python --version
-          echo "=== Cython ==="
-          venv/bin/python -c "import Cython; print(Cython.__version__)"
-          echo "=== Buildozer ==="
+          venv/bin/python -c "import Cython; print('Cython:', Cython.__version__)"
           venv/bin/buildozer --version
 
       # ============================================================
-      # 6. البناء
+      # 6. قبول كل رخص Android SDK مسبقاً
       # ============================================================
-      - name: 6. Build APK
+      - name: 6. Pre-accept Android SDK licenses
+        run: |
+          mkdir -p ~/.android
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.android/licenses_hash.txt
+          mkdir -p $ANDROID_HOME/licenses 2>/dev/null || mkdir -p ~/Android/Sdk/licenses 2>/dev/null || true
+          for dir in $ANDROID_HOME/licenses ~/Android/Sdk/licenses /usr/local/lib/android/sdk/licenses; do
+            mkdir -p "$dir" 2>/dev/null || true
+            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$dir/android-sdk-license" 2>/dev/null || true
+            echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$dir/android-sdk-preview-license" 2>/dev/null || true
+            echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > "$dir/android-googletv-license" 2>/dev/null || true
+            echo "d975f751698a77b662f1254ddbeed3901e976f5a" > "$dir/intel-android-extra-license" 2>/dev/null || true
+            echo "859f317696f67ef3d7f30a50a5560e7834b43903" > "$dir/android-sdk-arm-dbt-license" 2>/dev/null || true
+            echo "e9acab5b5fbb560a72cfaecce8946896ff6aab9d" > "$dir/mips-android-sysimage-license" 2>/dev/null || true
+          done
+          echo "✅ Licenses pre-accepted"
+
+      # ============================================================
+      # 7. البناء (بدون yes لمنع مشكلة Broken pipe)
+      # ============================================================
+      - name: 7. Build APK
         run: |
           rm -rf .buildozer ~/.buildozer bin
           export PATH="$PWD/venv/bin:$PATH"
-          yes | venv/bin/buildozer -v android debug
+          buildozer -v android debug
+        timeout-minutes: 60
 
       # ============================================================
-      # 7. رفع APK
+      # 8. رفع APK
       # ============================================================
-      - name: 7. Upload APK
+      - name: 8. Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
