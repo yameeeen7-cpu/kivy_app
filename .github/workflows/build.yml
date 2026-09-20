@@ -32,19 +32,21 @@ jobs:
           venv/bin/pip --version
 
       # ============================================================
-      # 3. تثبيت تبعيات النظام
+      # 3. تثبيت تبعيات النظام الشاملة لبناء أندرويد
       # ============================================================
       - name: 3. Install system dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk \
             autoconf libtool pkg-config zlib1g-dev \
             libncurses5-dev libncursesw5-dev libtinfo5 cmake \
-            libffi-dev libssl-dev \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+            libffi-dev libssl-dev libltdl-dev \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            patch aclocal automake
 
       # ============================================================
-      # 4. تثبيت Buildozer
+      # 4. تثبيت Buildozer و Cython
       # ============================================================
       - name: 4. Install Buildozer
         run: |
@@ -68,7 +70,7 @@ jobs:
         run: |
           mkdir -p ~/.android
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.android/licenses_hash.txt
-          mkdir -p $ANDROID_HOME/licenses 2>/dev/null || mkdir -p ~/Android/Sdk/licenses 2>/dev/null || true
+          mkdir -p $ANDROID_HOME/licenses 2>/dev/null || true
           for dir in $ANDROID_HOME/licenses ~/Android/Sdk/licenses /usr/local/lib/android/sdk/licenses; do
             mkdir -p "$dir" 2>/dev/null || true
             echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$dir/android-sdk-license" 2>/dev/null || true
@@ -81,12 +83,21 @@ jobs:
           echo "✅ Licenses pre-accepted"
 
       # ============================================================
-      # 7. البناء (بدون yes لمنع مشكلة Broken pipe)
+      # 7. Build APK — مع عزل SDK النظام وتفريغ متغيراته
       # ============================================================
       - name: 7. Build APK
         run: |
           rm -rf .buildozer ~/.buildozer bin
           export PATH="$PWD/venv/bin:$PATH"
+          
+          # تفريغ متغيرات أندرويد الخاصة بالنظام لمنع التعارض مع Buildozer
+          unset ANDROID_HOME
+          unset ANDROID_SDK_ROOT
+          unset ANDROID_NDK_HOME
+          unset ANDROID_NDK_LATEST_HOME
+          unset ANDROID_NDK_ROOT
+          
+          # تشغيل البناء
           buildozer -v android debug
         timeout-minutes: 60
 
