@@ -1,54 +1,56 @@
-name: Build APK
+name: CI
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Python 3.9
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
-      - name: Verify Python
-        run: |
-          python --version
-          which python
-
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git zip unzip openjdk-17-jdk python3-pip \
-            autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev libtinfo5 \
-            cmake libffi-dev libssl-dev \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+            python3-pip \
+            build-setup \
+            git \
+            zip \
+            unzip \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libsqlite3-dev \
+            libffi-dev \
+            libssl-dev
 
       - name: Install Buildozer and Cython
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cython==0.29.33" "setuptools<=65.5.0" buildozer
+          python -m pip install "cython==0.29.33" "setuptools<=65.5.0"
+          python -m pip install git+https://github.com/kivy/buildozer
 
-      - name: Verify Buildozer
+      - name: Build APK with Buildozer
         run: |
-          buildozer --version
+          rm -rf .buildozer ~/.buildozer bin
+          yes | buildozer -v android debug
 
-      - name: Build APK
-        run: |
-          buildozer -v android debug
-
-      - name: Upload APK
-        if: always()
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apk
+          name: package
           path: bin/*.apk
-          if-no-files-found: warn
