@@ -44,6 +44,7 @@ jobs:
 
       - name: Build with Buildozer
         run: |
+          rm -rf .buildozer ~/.buildozer bin
           buildozer -v android debug 2>&1 | tee build.log
 
       - name: Show last 200 lines if failed
