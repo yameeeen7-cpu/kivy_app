@@ -6,23 +6,43 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android:
-    name: Build for Android
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
+    container:
+      image: kivy/buildozer:latest
+      options: --user root
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          workdir: .
-          buildozer_version: stable
+      - name: Build APK
+        run: |
+          rm -rf .buildozer ~/.buildozer bin
+          buildozer -v android debug 2>&1 | tee build.log
 
-      - name: Upload artifacts
+      - name: Show results
+        if: always()
+        run: |
+          echo "=== bin/ ==="
+          ls -la bin/ 2>/dev/null || echo "no bin"
+          echo "=== Search APK ==="
+          find / -name "*.apk" -type f 2>/dev/null | head -20 || echo "no APK"
+          echo "=== Last 100 lines ==="
+          tail -n 100 build.log 2>/dev/null || echo "no log"
+
+      - name: Upload log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: package
-          path: ${{ steps.buildozer.outputs.filename }}
+          name: build-log
+          path: build.log
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: |
+            bin/*.apk
+            **/*.apk
+          if-no-files-found: warn
