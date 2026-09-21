@@ -9,25 +9,40 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     container:
-      image: kivy/buildozer:1.5.0
+      image: ubuntu:22.04
       options: --user root
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Python 3.10
+        run: |
+          apt-get update
+          apt-get install -y software-properties-common
+          add-apt-repository -y ppa:deadsnakes/ppa
+          apt-get update
+          apt-get install -y python3.10 python3.10-dev python3.10-venv python3.10-distutils
+
+      - name: Install system dependencies
+        run: |
+          apt-get install -y git zip unzip openjdk-17-jdk autoconf automake libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+
+      - name: Install Buildozer
+        run: |
+          python3.10 -m pip install --upgrade pip
+          python3.10 -m pip install "cython==0.29.33" "setuptools<=65.5.0" buildozer
+
       - name: Build with Buildozer
         run: |
           rm -rf .buildozer ~/.buildozer bin
-          buildozer -v android debug 2>&1 | tee build.log
+          python3.10 -m buildozer -v android debug 2>&1 | tee build.log
 
       - name: Show build results
         if: always()
         run: |
           echo "=== bin/ ==="
           ls -la bin/ 2>/dev/null || echo "no bin"
-          echo "=== Search for APK ==="
           find / -name "*.apk" -type f 2>/dev/null | head -20 || echo "no APK"
-          echo "=== Last 50 lines ==="
           tail -n 50 build.log 2>/dev/null || echo "no log"
 
       - name: Upload build log
