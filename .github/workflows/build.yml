@@ -1,51 +1,30 @@
 name: Build APK
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    container:
+      image: kivy/buildozer:latest
+      options: --user root
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create swap space
+      - name: Build with Buildozer
         run: |
-          sudo swapoff -a || true
-          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          free -h
-
-      - name: Prepare directories
-        run: |
-          mkdir -p "$HOME/.buildozer"
-          mkdir -p bin
-
-      - name: Pull Buildozer Docker image
-        run: docker pull kivy/buildozer:latest
-
-      - name: Build APK inside Docker
-        run: |
-          set -o pipefail
-          docker run --rm \
-            --entrypoint sh \
-            -v "$PWD":/home/user/hostcwd \
-            -v "$HOME/.buildozer":/home/user/.buildozer \
-            -w /home/user/hostcwd \
-            kivy/buildozer:latest \
-            -c "buildozer -v android debug" \
-            2>&1 | tee build.log
+          buildozer -v android debug 2>&1 | tee build.log
 
       - name: Show build results
         if: always()
         run: |
+          echo "=== bin/ ==="
           ls -la bin/ 2>/dev/null || echo "no bin"
-          find . -name "*.apk" -type f 2>/dev/null || echo "no APK"
+          echo "=== Search for APK ==="
+          find / -name "*.apk" -type f 2>/dev/null | head -20 || echo "no APK"
+          echo "=== Last 50 lines ==="
           tail -n 50 build.log 2>/dev/null || echo "no log"
 
       - name: Upload build log
@@ -60,5 +39,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: apk
-          path: bin/*.apk
+          path: |
+            bin/*.apk
+            **/*.apk
           if-no-files-found: warn
