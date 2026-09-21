@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     container:
-      image: kivy/buildozer:2023.09.10
+      image: kivy/buildozer:latest
       options: --user root
 
     steps:
@@ -17,6 +17,7 @@ jobs:
 
       - name: Build with Buildozer
         run: |
+          rm -rf .buildozer ~/.buildozer bin
           buildozer -v android debug 2>&1 | tee build.log
 
       - name: Show build results
